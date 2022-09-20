@@ -5,7 +5,7 @@ template <class T, std::size_t extent, std::size_t stride>
 class Slice {
 public:
   template <class It>
-  Slice(It first, std::size_t count, std::size_t stride);
+  Slice(It first, std::size_t count, std::size_t skip);
 
   // ...
 

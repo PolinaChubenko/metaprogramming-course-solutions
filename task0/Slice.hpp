@@ -5,10 +5,13 @@
 #include <iterator>
 
 
-template 
+inline constexpr std::ptrdiff_t dynamic_stride = -1;
+
+
+template
   < class T
   , std::size_t extent = std::dynamic_extent
-  , std::size_t stride = 1
+  , std::ptrdiff_t stride = 1
   >
 class Slice {
 public:
@@ -16,7 +19,7 @@ public:
   Slice(U& container);
 
   template <std::contiguous_iterator It>
-  Slice(It first, std::size_t count, std::size_t skip);
+  Slice(It first, std::size_t count, std::ptrdiff_t skip);
 
   // Data, Size, Stride, begin, end, casts, etc...
 
@@ -40,7 +43,7 @@ public:
   template <std::size_t count>
   Slice<T, /*?*/, stride>
     DropFirst() const;
-    
+
   Slice<T, std::dynamic_extent, stride>
     DropLast(std::size_t count) const;
 
@@ -49,14 +52,14 @@ public:
     DropLast() const;
 
   Slice<T, /*?*/, /*?*/>
-    Skip(std::size_t skip) const;
-  
-  template <std::size_t skip>
+    Skip(std::ptrdiff_t skip) const;
+
+  template <std::ptrdiff_t skip>
   Slice<T, /*?*/, /*?*/>
     Skip() const;
 
 private:
   T* data_;
   // std::size_t extent_; ?
-  // std::size_t stride_; ?
+  // std::ptrdiff_t stride_; ?
 };

@@ -178,14 +178,6 @@ public:
     return {Data() + (Size() - Count), Count};
   }
 
-  // template
-  //   < std::size_t Offset
-  //   , std::size_t Count = std::dynamic_extent 
-  //   >
-  // constexpr std::span<element_type, E> Subspan() const;
-
-  // constexpr Span<element_type, std::dynamic_extent> Subspan(size_type Offset, size_type Count = std::dynamic_extent) const;
-
   // Iterators
 
   constexpr iterator begin() const noexcept { 

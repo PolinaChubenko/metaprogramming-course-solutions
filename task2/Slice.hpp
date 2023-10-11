@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <array>
 #include <iterator>
-#include <iostream>
 
 
 inline constexpr std::ptrdiff_t dynamic_stride = -1;
@@ -401,15 +400,7 @@ template
   , std::ptrdiff_t s2
   >
 constexpr bool operator==(const Slice<T1, e1, s1>& sl1, const Slice<T2, e2, s2>& sl2) noexcept {
-  if (sl1.Size() != sl2.Size()) {
-    return false;
-  }
-  for (size_t i = 0; i < sl1.Size(); ++i) {
-    if (sl1[i * sl1.Stride()] != sl2[i * sl2.Stride()]) {
-      return false;
-    }
-  }
-  return true;
+  return sl1.Size() == sl2.Size() && sl1.Stride() == sl2.Stride() && sl1.Data() == sl2.Data();
 }
 
 

@@ -22,8 +22,6 @@ namespace detail {
 
   template < >
   struct SpanBase<std::dynamic_extent> {
-   public:
-
     constexpr SpanBase() noexcept = default;
     SpanBase(std::size_t extent) : extent_(extent) {}
 
@@ -44,7 +42,6 @@ template
   >
 class Span : detail::SpanBase<extent> {
  private:
-
   using Base = detail::SpanBase<extent>;
   using Base::Extent;
 
@@ -193,7 +190,7 @@ class Span : detail::SpanBase<extent> {
   }
 
 
-private:
+ private:
   T* data_ = nullptr;
 };
 

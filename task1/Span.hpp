@@ -2,58 +2,53 @@
 #include <concepts>
 #include <cstdlib>
 #include <iterator>
+#include <cassert>
+
+
+namespace detail {
+  template
+    < std::size_t extent
+    >
+  struct SpanBase {
+    constexpr SpanBase() noexcept = default;
+    SpanBase(std::size_t e) {
+      assert(e == extent);
+    }
+
+    constexpr std::size_t Extent() const {
+      return extent;
+    }
+  };
+
+  template < >
+  struct SpanBase<std::dynamic_extent> {
+   public:
+
+    constexpr SpanBase() noexcept = default;
+    SpanBase(std::size_t extent) : extent_(extent) {}
+
+    [[gnu::always_inline]] std::size_t Extent() const {
+      return extent_;
+    }
+
+   private:
+    std::size_t extent_ = 0;
+  };
+}
+
 
 
 template
   < class T
   , std::size_t extent = std::dynamic_extent
   >
-class Span {
-private:
+class Span : detail::SpanBase<extent> {
+ private:
 
-  template
-    < std::size_t extent_
-    >
-  struct DataStorage {
-    public:
+  using Base = detail::SpanBase<extent>;
+  using Base::Extent;
 
-      constexpr DataStorage() noexcept = default;
-      DataStorage(T* data, std::size_t) : data_(data) {}
-
-      constexpr std::size_t Size() const {
-        return extent_;
-      }
-
-      T* Data() const {
-        return data_;
-      }
-
-    private:
-      T* data_ = nullptr;
-  };
-
-  template < >
-  struct DataStorage<std::dynamic_extent> {
-    public:
-
-      constexpr DataStorage() noexcept = default;
-      DataStorage(T* data, std::size_t size) : data_(data), size_(size) {}
-
-      constexpr std::size_t Size() const {
-        return size_;
-      }
-
-      T* Data() const {
-        return data_;
-      }
-
-    private:
-      T* data_ = nullptr;
-      std::size_t size_ = 0;
-    
-  };
-
-public:
+ public:
 
   // Named requirements
 
@@ -70,51 +65,52 @@ public:
 
   // Constructors
 
-  constexpr Span() noexcept = default;
+  constexpr Span() noexcept requires (extent == 0 || extent == std::dynamic_extent) = default;
 
   template
-    < class It 
+    < std::contiguous_iterator It 
     >
   explicit(extent != std::dynamic_extent)
-  constexpr Span(It first, size_type count) : storage_(std::to_address(first), count) {}
+  constexpr Span(It first, size_type count) : Base(count), data_(std::to_address(first)) {}
 
   template
-    < class It
-    , class End 
+    < std::contiguous_iterator It
+    , std::contiguous_iterator End 
     >
+    requires (std::same_as<typename It::value, typename End::value>)
   explicit(extent != std::dynamic_extent)
-  constexpr Span(It first, End last) : storage_(std::to_address(first), last - first) {}
+  constexpr Span(It first, End last) : Base(last - first), data_(std::to_address(first)) {}
 
   template
     < std::size_t N 
     >
-  constexpr Span(std::type_identity_t<element_type> (&arr)[N]) noexcept : storage_(arr, N) {}
+  constexpr Span(std::type_identity_t<element_type> (&arr)[N]) noexcept : Base(N), data_(arr) {}
 
   template
     < class U
     , std::size_t N 
     >
-  constexpr Span(std::array<U, N>& arr) noexcept : storage_(arr.data(), N) {}
+  constexpr Span(std::array<U, N>& arr) noexcept : Base(N), data_(arr.data()) {}
 
   template
     < class U
     , std::size_t N 
     >
-  constexpr Span(const std::array<U, N>& arr) noexcept : storage_(arr.data(), N) {}
+  constexpr Span(const std::array<U, N>& arr) noexcept : Base(N), data_(arr.data()) {}
 
 
   template
     < class R 
     >
   explicit(extent != std::dynamic_extent)
-  constexpr Span(R&& range) : storage_(std::data(range), range.size()) {}
+  constexpr Span(R&& range) : Base(range.size()), data_(std::data(range)) {}
 
   template
     < class U
     , std::size_t N 
     >
   explicit(extent != std::dynamic_extent && N == std::dynamic_extent)
-  constexpr Span(const Span<U, N>& source) noexcept : storage_(source.data(), source.size()) {}
+  constexpr Span(const Span<U, N>& source) noexcept : Base(source.size()), data_(source.data()) {}
 
   constexpr Span(const Span& other) noexcept = default;
 
@@ -137,13 +133,13 @@ public:
   }
 
   constexpr pointer Data() const noexcept {
-    return storage_.Data();
+    return data_;
   }
 
   // Observers
 
   constexpr size_type Size() const noexcept {
-    return storage_.Size();
+    return Extent();
   }
 
   constexpr size_type Size_bytes() const noexcept {
@@ -198,7 +194,7 @@ public:
 
 
 private:
-  DataStorage<extent> storage_{};
+  T* data_ = nullptr;
 };
 
 

@@ -3,18 +3,20 @@
 #include <cstdlib>
 #include <array>
 #include <iterator>
+#include <cassert>
 
 
 inline constexpr std::ptrdiff_t dynamic_stride = -1;
 
 namespace detail {
   template
-  < std::size_t extent_
-  >
+    < std::size_t extent_
+    >
   struct ExtentImpl {
-  public:
     constexpr ExtentImpl() noexcept = default;
-    constexpr ExtentImpl(std::size_t) {}
+    constexpr ExtentImpl(std::size_t e) {
+      assert(e == extent_);
+    }
     constexpr std::size_t Extent() const {
       return extent_;
     }
@@ -22,13 +24,12 @@ namespace detail {
 
   template < >
   struct ExtentImpl<std::dynamic_extent> {
-  public:
     constexpr ExtentImpl() noexcept = default;
     constexpr ExtentImpl(std::size_t e) : extent_(e) {}
-    std::size_t Extent() const {
+    [[gnu::always_inline]] std::size_t Extent() const {
       return extent_;
     }
-  private:
+   private:
     std::size_t extent_ = 0;
   };
 
@@ -36,9 +37,8 @@ namespace detail {
     < std::ptrdiff_t stride_
     >
   struct StrideImpl {
-  public:
     constexpr StrideImpl() noexcept = default;
-    constexpr StrideImpl(std::ptrdiff_t) {}
+    constexpr StrideImpl(std::ptrdiff_t s) {}
     constexpr std::ptrdiff_t Stride() const {
       return stride_;
     }
@@ -46,13 +46,12 @@ namespace detail {
 
   template < >
   struct StrideImpl<dynamic_stride> {
-  public:
     constexpr StrideImpl() noexcept = default;
     constexpr StrideImpl(std::ptrdiff_t s) : stride_(s) {}
-    std::ptrdiff_t Stride() const {
+    [[gnu::always_inline]] std::ptrdiff_t Stride() const {
       return stride_;
     }
-  private:
+   private:
     std::ptrdiff_t stride_ = -1;
   };
 
@@ -68,39 +67,43 @@ template
   , std::ptrdiff_t stride = 1
   >
 class Slice {
-private:
+ private:
   template
     < std::size_t extent_
     , std::ptrdiff_t stride_
     >
   struct DataStorage : private detail::ExtentImpl<extent_>, private detail::StrideImpl<stride_> {
-  public:
-
+   private: 
+    using TExtent = detail::ExtentImpl<extent_>;
+    using TStride = detail::StrideImpl<stride_>;
+   public:
     constexpr DataStorage() noexcept = default;
-    constexpr DataStorage(T* data, std::size_t e, std::ptrdiff_t s) : 
-      detail::ExtentImpl<extent_>(e), detail::StrideImpl<stride_>(s), data_(data) {}
+    constexpr DataStorage(T* data, std::size_t e, std::ptrdiff_t s) : TExtent(e), TStride(s), data_(data) {}
 
     constexpr std::size_t Extent() const {
-      return detail::ExtentImpl<extent_>::Extent();
+      return TExtent::Extent();
     }
 
     constexpr std::ptrdiff_t Stride() const {
-      return detail::StrideImpl<stride_>::Stride();
+      return TStride::Stride();
     }
 
     T* Data() const {
       return data_;
     }
 
-  private:
+   private:
     T* data_ = nullptr;
   };
 
-public:
+ public:
 
   // Iterator 
 
-  struct Iterator {
+  struct Iterator : detail::StrideImpl<stride> {
+  private:
+    using TStride = detail::StrideImpl<stride>;
+    using TStride::Stride;
   public:
 
     // Traits
@@ -112,7 +115,6 @@ public:
 
   private:
     pointer ptr_;
-    difference_type skip_;
 
   public:
 
@@ -120,7 +122,7 @@ public:
 
     Iterator() = default;
 
-    Iterator(pointer ptr, difference_type skip) : ptr_(ptr), skip_(skip) {}
+    Iterator(pointer ptr, difference_type skip) : TStride(skip), ptr_(ptr) {}
 
     // Access
 
@@ -133,47 +135,47 @@ public:
     }
 
     reference operator[](difference_type n) const {
-      return ptr_ + n * skip_;
+      return ptr_ + n * Stride();
     }
 
     // Bidirectional math
 
     Iterator& operator++() {
-      ptr_ += skip_;
+      ptr_ += Stride();
       return *this;
     }
 
     Iterator operator++(int) {
       Iterator copy = *this;
-      ptr_ += skip_;
+      ptr_ += Stride();
       return copy;
     }
 
     Iterator& operator--() {
-      ptr_ -= skip_;
+      ptr_ -= Stride();
       return *this;
     }
 
     Iterator operator--(int) {
       Iterator copy = *this;
-      ptr_ -= skip_;
+      ptr_ -= Stride();
       return copy;
     }
 
     // Math
 
     Iterator& operator+=(int offset) {
-      ptr_ += offset * skip_;
+      ptr_ += offset * Stride();
       return *this;
     }
 
     Iterator& operator-=(int offset) {
-      ptr_ -= offset * skip_;
+      ptr_ -= offset * Stride();
       return *this;
     }
 
-    friend Iterator operator+(const Iterator& it, difference_type offset) {
-      Iterator copy = it;
+    Iterator operator+(difference_type offset) const {
+      Iterator copy = *this;
       copy += offset;
       return copy;
     }
@@ -184,40 +186,24 @@ public:
       return copy;
     }
 
-    friend Iterator operator-(const Iterator& it, difference_type offset) {
-      Iterator copy = it;
+    Iterator operator-(difference_type offset) const {
+      Iterator copy = *this;
       copy -= offset;
       return copy;
     }
 
-    friend difference_type operator-(const Iterator& it1, const Iterator& it2) {
-      return (it1.ptr_ - it2.ptr_) / it1.skip_;
+    difference_type operator-(const Iterator& other) const {
+      return (ptr_ - other.ptr_) / Stride();
     }
 
     // Comparison
 
-    friend bool operator<(const Iterator& it1, const Iterator& it2) {
-      return it1.ptr_ < it2.ptr_;
+    bool operator<=>(const Iterator& other) const {
+      return ptr_ <=> other.ptr_;
     }
 
-    friend bool operator==(const Iterator& it1, const Iterator& it2) {
-      return !(it1 < it2) && !(it2 < it1);
-    }
-
-    friend bool operator!=(const Iterator& it1, const Iterator& it2) {
-      return !(it1 == it2);
-    }
-
-    friend bool operator>(const Iterator& it1, const Iterator& it2) {
-      return !(it1 < it2) && !(it1 == it2);
-    }
-
-    friend bool operator<=(const Iterator& it1, const Iterator& it2) {
-      return !(it1 > it2);
-    }
-
-    friend bool operator>=(const Iterator& it1, const Iterator& it2) {
-      return !(it1 < it2);
+    bool operator==(const Iterator& other) const {
+      return ptr_ == other.ptr_;
     }
   };
 

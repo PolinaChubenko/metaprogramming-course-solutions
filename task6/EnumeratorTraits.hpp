@@ -28,9 +28,11 @@ namespace detail {
   template <class Enum, long I> requires std::is_enum_v<Enum>
   consteval std::string_view GetEnumName() {
     std::string_view str_v = Helper<GetEnumValue<Enum, I>()>();
-    std::size_t pos = str_v.rfind(':') + 1;
+    std::size_t pos = str_v.rfind('=') + 2;
+    str_v = str_v.substr(pos, str_v.size() - pos - 1);
+    pos = str_v.find_last_of(':') + 1;
     if (pos != std::string_view::npos) {
-        str_v = str_v.substr(pos, str_v.size() - pos - 1);
+        str_v = str_v.substr(pos, str_v.size() - pos);
     }
     return str_v;
   }
